@@ -50,4 +50,7 @@ type IWal interface {
 
 	// Header
 	Header() (*header, error)
+
+	// Items
+	Items() ([]*Item, error)
 }

@@ -108,7 +108,27 @@ func (f *UnixFile) First() (*Record, error) {
 }
 
 func (f *UnixFile) Last() (*Record, error) {
-	return nil, nil
+	f.Seek(4, io.SeekEnd)
+	r := &Record{}
+	rs := cachem.Malloc(4)
+	defer cachem.Free(rs)
+	n, err := f.Read(rs)
+	if n != 4 || err != nil {
+		return nil, ErrInvalidData
+	}
+	rsize := binary.BigEndian.Uint32(rs) + 4
+	records := cachem.Malloc(int(rsize))
+	defer cachem.Free(records)
+	f.Seek(int64(rsize), io.SeekEnd)
+	n, err = f.Read(records)
+	if n != int(rsize) || err != nil {
+		return nil, ErrInvalidData
+	}
+	err = r.Unmarshal(records[4:])
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (f *UnixFile) Close() error {
@@ -177,6 +197,33 @@ func (f *UnixFile) WriteAt(p []byte, off int64) (n int, err error) {
 	f.size += int64(wn)
 
 	return wn, nil
+}
+
+func (f *UnixFile) Items() ([]*Item, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	rsizes := cachem.Malloc(4)
+	defer cachem.Free(rsizes)
+	indexs := cachem.Malloc(8)
+	defer cachem.Free(indexs)
+
+	var pos int64 = 4
+	res := make([]*Item, 0)
+	for {
+		f.ReadAt(rsizes, pos)
+		rsize := binary.BigEndian.Uint32(rsizes)
+
+		if rsize == 0 {
+			break
+		}
+
+		f.ReadAt(indexs, pos+4)
+		index := binary.BigEndian.Uint64(indexs)
+
+		res = append(res, &Item{offset: uint64(pos), length: uint64(rsize) + 4, index: index})
+		pos += int64(rsize) + 4
+	}
+	return res, nil
 }
 
 // Stat returns os.FileInfo describing the file.

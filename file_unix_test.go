@@ -2,12 +2,34 @@ package wal
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
+
+	"github.com/sunvim/utils/cachem"
 )
 
 var (
 	testfile = "text.file"
+
+	tables = []*Record{
+		{
+			index: 1,
+			data:  []byte("hello"),
+		},
+		{
+			index: 2,
+			data:  []byte("mobus"),
+		},
+		{
+			index: 3,
+			data:  []byte("world,hello"),
+		},
+		{
+			index: 4,
+			data:  []byte("my family"),
+		},
+	}
 )
 
 func openFile(path string) IWal {
@@ -74,6 +96,61 @@ func TestFirstRecord(t *testing.T) {
 	uf.Write(r.Marshal())
 
 	rr, err := uf.First()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if r.rsize != rr.rsize || r.index != rr.index || !bytes.Equal(r.data, rr.data) {
+		t.Errorf("rsize want: %d got: %d \n index want: %d got: %d \n data want: %s got: %s \n",
+			r.rsize, rr.rsize,
+			r.index, rr.index,
+			r.data, rr.data)
+		return
+	}
+}
+
+func TestItems(t *testing.T) {
+
+	uf := openFile(testfile)
+	for _, v := range tables {
+		uf.Write(v.Marshal())
+	}
+	r := &Record{}
+	items, _ := uf.Items()
+	for _, item := range items {
+		buf := cachem.Malloc(int(item.length))
+		uf.ReadAt(buf, int64(item.offset))
+		r.Unmarshal(buf[4:])
+		fmt.Printf("rec: %+v data: %s \n", r, r.data)
+		cachem.Free(buf)
+	}
+}
+
+func TestLastRecord(t *testing.T) {
+
+	uf := openFile(testfile)
+	r := &Record{
+		index: 1,
+		data:  []byte("hello"),
+	}
+
+	uf.Write(r.Marshal())
+
+	r = &Record{
+		index: 2,
+		data:  []byte("mobus"),
+	}
+
+	uf.Write(r.Marshal())
+
+	r = &Record{
+		index: 3,
+		data:  []byte("world"),
+	}
+
+	uf.Write(r.Marshal())
+
+	rr, err := uf.Last()
 	if err != nil {
 		t.Error(err)
 		return
