@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 
@@ -121,8 +120,14 @@ func TestItems(t *testing.T) {
 		buf := cachem.Malloc(int(item.length))
 		uf.ReadAt(buf, int64(item.offset))
 		r.Unmarshal(buf[4:])
-		fmt.Printf("rec: %+v data: %s \n", r, r.data)
 		cachem.Free(buf)
+		for _, v := range tables {
+			if v.index == r.index {
+				if v.rsize != r.rsize || !bytes.Equal(v.data, r.data) {
+					t.Error("not matched")
+				}
+			}
+		}
 	}
 }
 
