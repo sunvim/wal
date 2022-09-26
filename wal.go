@@ -26,17 +26,9 @@ func Open(path string, opts *Option) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	first, err := l.writer.First()
-	if err != nil {
-		return nil, err
-	}
-	l.fistIndex = first.index
-
-	last, err := l.writer.Last()
-	if err != nil {
-		return nil, err
-	}
-	l.lastIndex = last.index
+	head, _ := l.writer.Header()
+	l.fistIndex = head.head
+	l.lastIndex = head.tail
 
 	return nil, nil
 }
@@ -113,6 +105,15 @@ func (l *Log) ReadBatch(idxes ...uint64) (map[uint64][]byte, error) {
 	return m, nil
 }
 
-func (l *Log) TruncateFront(idx uint64) {
-	panic("not implemented") // TODO: Implement
+func (l *Log) TruncateFront(idx uint64) error {
+	item, err := l.writer.Item(idx)
+	if err != nil {
+		return err
+	}
+	l.writer.Remove(HeaderSize, int64(item.offset))
+	h, _ := l.writer.Header()
+	h.head = idx
+	l.writer.WriteAt(h.Marshal(), 0)
+
+	return nil
 }

@@ -208,6 +208,38 @@ func (f *UnixFile) WriteAt(p []byte, off int64) (n int, err error) {
 	return wn, nil
 }
 
+func (f *UnixFile) Item(idx uint64) (*Item, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	rsizes := cachem.Malloc(RecordSize)
+	defer cachem.Free(rsizes)
+	indexs := cachem.Malloc(IndexSize)
+	defer cachem.Free(indexs)
+	var err error
+	item := &Item{}
+	var pos int64 = HeaderSize
+
+	for {
+		f.ReadAt(rsizes, pos)
+		rsize := binary.BigEndian.Uint32(rsizes)
+
+		if rsize == 0 {
+			err = ErrNotFound
+			break
+		}
+
+		f.ReadAt(indexs, pos+RecordSize)
+		index := binary.BigEndian.Uint64(indexs)
+		if index == idx {
+			item.offset = uint64(pos)
+			item.length = uint64(rsize) + RecordSize
+			item.index = index
+			break
+		}
+	}
+	return item, err
+}
+
 func (f *UnixFile) Items() ([]*Item, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -226,7 +258,7 @@ func (f *UnixFile) Items() ([]*Item, error) {
 			break
 		}
 
-		f.ReadAt(indexs, pos+4)
+		f.ReadAt(indexs, pos+RecordSize)
 		index := binary.BigEndian.Uint64(indexs)
 
 		res = append(res, &Item{offset: uint64(pos), length: uint64(rsize) + RecordSize, index: index})

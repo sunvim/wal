@@ -23,7 +23,7 @@ type IWal interface {
 	Close() error
 	Write(idx uint64, data []byte)
 	Read(idx uint64) (data []byte, err error)
-	TruncateFront(idx uint64)
+	TruncateFront(idx uint64) error
 }
 
 type IFile interface {
@@ -60,6 +60,9 @@ type IFile interface {
 
 	// Items
 	Items() ([]*Item, error)
+
+	// Item
+	Item(idx uint64) (*Item, error)
 
 	// Remove
 	Remove(stx, end int64)

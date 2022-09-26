@@ -34,22 +34,22 @@ type Record struct {
 }
 
 func (r *Record) Marshal() []byte {
-	ibs := cachem.Malloc(8)
+	ibs := cachem.Malloc(IndexSize)
 	binary.BigEndian.PutUint64(ibs, r.index)
-	r.rsize = uint32(len(r.data)) + 12
-	rbs := cachem.Malloc(4)
+	r.rsize = uint32(len(r.data)) + IndexSize + RecordSize
+	rbs := cachem.Malloc(RecordSize)
 	binary.BigEndian.PutUint32(rbs, r.rsize)
 	defer func() { cachem.Free(ibs); cachem.Free(rbs) }()
 	return append(rbs, append(append(ibs, r.data...), rbs...)...)
 }
 
 func (r *Record) Unmarshal(data []byte) error {
-	if len(data) < 12 {
+	if len(data) < IndexSize+RecordSize {
 		return ErrInvalidData
 	}
-	r.index = binary.BigEndian.Uint64(data[:8])
-	r.rsize = binary.BigEndian.Uint32(data[len(data)-4:])
-	r.data = make([]byte, r.rsize-12)
-	copy(r.data, data[8:])
+	r.index = binary.BigEndian.Uint64(data[:IndexSize])
+	r.rsize = binary.BigEndian.Uint32(data[len(data)-RecordSize:])
+	r.data = make([]byte, r.rsize-IndexSize-RecordSize)
+	copy(r.data, data[IndexSize:])
 	return nil
 }
