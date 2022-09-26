@@ -20,6 +20,13 @@ import (
 )
 
 type IWal interface {
+	Close() error
+	Write(idx uint64, data []byte)
+	Read(idx uint64) (data []byte, err error)
+	TruncateFront(idx uint64)
+}
+
+type IFile interface {
 	io.Closer
 	io.Reader
 	io.ReaderAt
@@ -53,4 +60,7 @@ type IWal interface {
 
 	// Items
 	Items() ([]*Item, error)
+
+	// Remove
+	Remove(stx, end int64)
 }

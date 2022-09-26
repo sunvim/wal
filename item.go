@@ -14,11 +14,8 @@
 
 package wal
 
-import "errors"
-
-var (
-	ErrOutOfSize   = errors.New("out of the file size")
-	ErrInvalidData = errors.New("invalid data")
-	ErrFile        = errors.New("error file")
-	ErrNotFound    = errors.New("not found")
-)
+type Item struct {
+	offset uint64
+	index  uint64
+	length uint64
+}

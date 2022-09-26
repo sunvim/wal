@@ -31,7 +31,7 @@ var (
 	}
 )
 
-func openFile(path string) IWal {
+func openFile(path string) IFile {
 
 	os.RemoveAll(testfile)
 
@@ -129,6 +129,27 @@ func TestItems(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestRemove(t *testing.T) {
+	uf := openFile(testfile)
+	for _, v := range tables {
+		uf.Write(v.Marshal())
+	}
+
+	items, _ := uf.Items()
+	for _, item := range items {
+		t.Logf("item: %+v \n", item)
+	}
+	stx := items[1].offset
+	end := items[2].offset + items[2].length
+	uf.Remove(int64(stx), int64(end))
+
+	items, _ = uf.Items()
+	for _, item := range items {
+		t.Logf("item: %+v \n", item)
+	}
+
 }
 
 func TestLastRecord(t *testing.T) {

@@ -20,6 +20,11 @@ import (
 	"github.com/sunvim/utils/cachem"
 )
 
+const (
+	RecordSize = 4
+	IndexSize  = 8
+)
+
 // Record format:
 // rsize(4B)+index(8B)+data(NB)+rsize(4B)
 type Record struct {

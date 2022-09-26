@@ -20,27 +20,39 @@ import (
 	"github.com/sunvim/utils/cachem"
 )
 
+const HeaderSize = 32
+
 type header struct {
-	version uint16
-	magic   uint16
+	version uint64
+	magic   uint64
+	head    uint64
+	tail    uint64
 }
 
-var defaultHeader = header{version: 1, magic: 0xface}
+var defaultHeader = header{version: 1, magic: 0xfaceface}
 
 func (h *header) Marshal() []byte {
-	vs := cachem.Malloc(2)
+	headSlice := make([]byte, HeaderSize, HeaderSize)
+	vs := cachem.Malloc(8)
 	defer cachem.Free(vs)
-	binary.BigEndian.PutUint16(vs, h.version)
-	ms := cachem.Malloc(2)
-	binary.BigEndian.PutUint16(ms, h.magic)
-	return append(vs, ms...)
+	binary.BigEndian.PutUint64(vs, h.version)
+	copy(headSlice[:], vs)
+	binary.BigEndian.PutUint64(vs, h.magic)
+	copy(headSlice[8:], vs)
+	binary.BigEndian.PutUint64(vs, h.head)
+	copy(headSlice[16:], vs)
+	binary.BigEndian.PutUint64(vs, h.tail)
+	copy(headSlice[24:], vs)
+	return headSlice
 }
 
 func (h *header) Unmarshal(data []byte) error {
-	if len(data) < 4 {
+	if len(data) < HeaderSize {
 		return ErrInvalidData
 	}
-	h.version = binary.BigEndian.Uint16(data[:2])
-	h.magic = binary.BigEndian.Uint16(data[2:4])
+	h.version = binary.BigEndian.Uint64(data[:8])
+	h.magic = binary.BigEndian.Uint64(data[8:16])
+	h.head = binary.BigEndian.Uint64(data[16:24])
+	h.tail = binary.BigEndian.Uint64(data[24:])
 	return nil
 }

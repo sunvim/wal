@@ -22,7 +22,6 @@ import (
 	"os"
 	"sync"
 	"syscall"
-	"unsafe"
 
 	"github.com/sunvim/utils/cachem"
 )
@@ -40,7 +39,7 @@ const (
 	defaultMemMapSize = 1 << 30
 )
 
-func OpenFile(path string, opts *Option) (IWal, error) {
+func OpenFile(path string, opts *Option) (IFile, error) {
 	if opts == nil {
 		opts = defaultOption
 	}
@@ -53,6 +52,18 @@ func OpenFile(path string, opts *Option) (IWal, error) {
 	uf.Write(defaultHeader.Marshal())
 
 	return uf, nil
+}
+
+func (f *UnixFile) Remove(stx, end int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	buf := make([]byte, f.size-end, f.size-end)
+	copy(buf, f.ref[end:])
+	copy(f.ref[stx:], buf)
+	diff := end - stx
+	f.size = f.size - diff
+	f.offset = f.offset - diff
+	buf = nil // for gc
 }
 
 func (f *UnixFile) Check() error {
@@ -68,9 +79,7 @@ func (f *UnixFile) Check() error {
 
 func (f *UnixFile) Header() (*header, error) {
 	f.Seek(0, io.SeekStart)
-
-	hl := int(unsafe.Sizeof(defaultHeader))
-	hs := cachem.Malloc(hl)
+	hs := cachem.Malloc(HeaderSize)
 	defer cachem.Free(hs)
 	_, err := f.Read(hs)
 	if err != nil {
@@ -85,19 +94,19 @@ func (f *UnixFile) Header() (*header, error) {
 }
 
 func (f *UnixFile) First() (*Record, error) {
-	f.Seek(4, io.SeekStart)
+	f.Seek(HeaderSize, io.SeekStart)
 	r := &Record{}
-	rs := cachem.Malloc(4)
+	rs := cachem.Malloc(RecordSize)
 	defer cachem.Free(rs)
-	n, err := f.Read(rs)
-	if n != 4 || err != nil {
+	_, err := f.Read(rs)
+	if err != nil {
 		return nil, ErrInvalidData
 	}
 	rsize := binary.BigEndian.Uint32(rs)
 	records := cachem.Malloc(int(rsize))
 	defer cachem.Free(records)
-	n, err = f.Read(records)
-	if n != int(rsize) || err != nil {
+	_, err = f.Read(records)
+	if err != nil {
 		return nil, ErrInvalidData
 	}
 	err = r.Unmarshal(records)
@@ -108,23 +117,23 @@ func (f *UnixFile) First() (*Record, error) {
 }
 
 func (f *UnixFile) Last() (*Record, error) {
-	f.Seek(4, io.SeekEnd)
+	f.Seek(RecordSize, io.SeekEnd)
 	r := &Record{}
-	rs := cachem.Malloc(4)
+	rs := cachem.Malloc(RecordSize)
 	defer cachem.Free(rs)
-	n, err := f.Read(rs)
-	if n != 4 || err != nil {
+	_, err := f.Read(rs)
+	if err != nil {
 		return nil, ErrInvalidData
 	}
-	rsize := binary.BigEndian.Uint32(rs) + 4
+	rsize := binary.BigEndian.Uint32(rs) + RecordSize
 	records := cachem.Malloc(int(rsize))
 	defer cachem.Free(records)
 	f.Seek(int64(rsize), io.SeekEnd)
-	n, err = f.Read(records)
-	if n != int(rsize) || err != nil {
+	_, err = f.Read(records)
+	if err != nil {
 		return nil, ErrInvalidData
 	}
-	err = r.Unmarshal(records[4:])
+	err = r.Unmarshal(records[RecordSize:])
 	if err != nil {
 		return nil, err
 	}
@@ -202,12 +211,12 @@ func (f *UnixFile) WriteAt(p []byte, off int64) (n int, err error) {
 func (f *UnixFile) Items() ([]*Item, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	rsizes := cachem.Malloc(4)
+	rsizes := cachem.Malloc(RecordSize)
 	defer cachem.Free(rsizes)
-	indexs := cachem.Malloc(8)
+	indexs := cachem.Malloc(IndexSize)
 	defer cachem.Free(indexs)
 
-	var pos int64 = 4
+	var pos int64 = HeaderSize
 	res := make([]*Item, 0)
 	for {
 		f.ReadAt(rsizes, pos)
@@ -220,8 +229,8 @@ func (f *UnixFile) Items() ([]*Item, error) {
 		f.ReadAt(indexs, pos+4)
 		index := binary.BigEndian.Uint64(indexs)
 
-		res = append(res, &Item{offset: uint64(pos), length: uint64(rsize) + 4, index: index})
-		pos += int64(rsize) + 4
+		res = append(res, &Item{offset: uint64(pos), length: uint64(rsize) + RecordSize, index: index})
+		pos += int64(rsize) + RecordSize
 	}
 	return res, nil
 }
