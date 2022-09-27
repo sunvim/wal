@@ -30,7 +30,7 @@ func Open(path string, opts *Option) (*Log, error) {
 	l.fistIndex = head.head
 	l.lastIndex = head.tail
 
-	return nil, nil
+	return l, nil
 }
 
 func (l *Log) Close() error {
@@ -61,24 +61,16 @@ func (l *Log) Write(idx uint64, data []byte) error {
 }
 
 func (l *Log) Read(idx uint64) (data []byte, err error) {
-	items, err := l.writer.Items()
+	item, err := l.writer.Item(idx)
 	if err != nil {
 		return nil, err
 	}
-	var rec *Record
-	for _, item := range items {
-		if item.index == idx {
-			buf := cachem.Malloc(int(item.length))
-			l.writer.ReadAt(buf, int64(item.offset))
-			rec.Unmarshal(buf)
-			cachem.Free(buf)
-			if rec.index != idx {
-				continue
-			}
-			return rec.data, nil
-		}
-	}
-	return nil, ErrNotFound
+	rec := &Record{}
+	buf := cachem.Malloc(int(item.length))
+	defer cachem.Free(buf)
+	l.writer.ReadAt(buf, int64(item.offset))
+	rec.Unmarshal(buf[RecordSize:])
+	return rec.data, nil
 }
 
 func (l *Log) ReadBatch(idxes ...uint64) (map[uint64][]byte, error) {

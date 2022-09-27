@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -27,12 +28,14 @@ import (
 )
 
 type UnixFile struct {
-	mu     sync.RWMutex
-	opts   *Option
-	offset int64
-	size   int64
-	file   *os.File
-	ref    []byte
+	mu      sync.RWMutex
+	opts    *Option
+	name    string
+	offset  int64
+	size    int64
+	mmpSize uint64
+	file    *os.File
+	ref     []byte
 }
 
 const (
@@ -47,7 +50,7 @@ func OpenFile(path string, opts *Option) (IFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	uf := &UnixFile{file: f, opts: opts}
+	uf := &UnixFile{file: f, opts: opts, name: filepath.Base(path)}
 	uf.mmap()
 	uf.Write(defaultHeader.Marshal())
 
@@ -78,10 +81,9 @@ func (f *UnixFile) Check() error {
 }
 
 func (f *UnixFile) Header() (*header, error) {
-	f.Seek(0, io.SeekStart)
 	hs := cachem.Malloc(HeaderSize)
 	defer cachem.Free(hs)
-	_, err := f.Read(hs)
+	_, err := f.ReadAt(hs, 0)
 	if err != nil {
 		return nil, ErrFile
 	}
@@ -177,15 +179,33 @@ func (f *UnixFile) Write(p []byte) (n int, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	wn := len(p)
-	if f.offset+int64(wn) > int64(len(f.ref)) {
+	if f.offset+int64(wn) > int64(f.mmpSize) {
 		return 0, ErrOutOfSize
 	}
-	f.grow(f.size + int64(wn))
+	if f.offset+int64(wn) > f.size {
+		f.size = f.offset + int64(wn)
+		f.grow(f.size)
+	}
 	copy(f.ref[f.offset:], p)
-	f.size += int64(wn)
 	f.offset += int64(wn)
-
 	return wn, nil
+}
+
+type FileInfo struct {
+	Offset uint64
+	Size   uint64
+	Header []byte
+	Name   string
+}
+
+func (f *UnixFile) Info() *FileInfo {
+	fi := &FileInfo{}
+	h, _ := f.Header()
+	fi.Header = h.Marshal()
+	fi.Name = f.name
+	fi.Offset = uint64(f.offset)
+	fi.Size = uint64(f.size)
+	return fi
 }
 
 func (f *UnixFile) WriteSize(size uint32) {
@@ -199,11 +219,15 @@ func (f *UnixFile) WriteAt(p []byte, off int64) (n int, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	wn := len(p)
-	if off+int64(wn) > int64(len(f.ref)) {
+	if off+int64(wn) > int64(f.mmpSize) {
 		return 0, ErrOutOfSize
 	}
+
+	if off+int64(wn) > f.size {
+		f.size = off + int64(wn)
+		f.grow(f.size)
+	}
 	copy(f.ref[off:], p)
-	f.size += int64(wn)
 
 	return wn, nil
 }
@@ -236,6 +260,7 @@ func (f *UnixFile) Item(idx uint64) (*Item, error) {
 			item.index = index
 			break
 		}
+		pos += int64(rsize) + RecordSize
 	}
 	return item, err
 }
@@ -293,10 +318,11 @@ func (f *UnixFile) mmap() {
 		err error
 	)
 	if f.opts.MmapSize > defaultMemMapSize {
-		b, err = syscall.Mmap(int(f.file.Fd()), 0, int(f.opts.MmapSize), syscall.PROT_WRITE|syscall.PROT_READ, syscall.MAP_SHARED)
+		f.mmpSize = f.opts.MmapSize
 	} else {
-		b, err = syscall.Mmap(int(f.file.Fd()), 0, defaultMemMapSize, syscall.PROT_WRITE|syscall.PROT_READ, syscall.MAP_SHARED)
+		f.mmpSize = defaultMemMapSize
 	}
+	b, err = syscall.Mmap(int(f.file.Fd()), 0, int(f.mmpSize), syscall.PROT_WRITE|syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		panic("mmap failed: " + err.Error())
 	}

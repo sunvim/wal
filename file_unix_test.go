@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/sunvim/utils/cachem"
 )
 
@@ -131,6 +132,18 @@ func TestItems(t *testing.T) {
 	}
 }
 
+func TestItem(t *testing.T) {
+	uf := openFile(testfile)
+	for _, v := range tables {
+		uf.Write(v.Marshal())
+	}
+	item, err := uf.Item(2)
+	assert.Equal(t, nil, err, "should read")
+
+	assert.Equal(t, uint64(2), item.index, "compare index")
+
+}
+
 func TestRemove(t *testing.T) {
 	uf := openFile(testfile)
 	for _, v := range tables {
@@ -164,14 +177,14 @@ func TestLastRecord(t *testing.T) {
 
 	r = &Record{
 		index: 2,
-		data:  []byte("mobus"),
+		data:  []byte("mobus11"),
 	}
 
 	uf.Write(r.Marshal())
 
 	r = &Record{
 		index: 3,
-		data:  []byte("world"),
+		data:  []byte("world111"),
 	}
 
 	uf.Write(r.Marshal())

@@ -66,4 +66,7 @@ type IFile interface {
 
 	// Remove
 	Remove(stx, end int64)
+
+	// Info
+	Info() *FileInfo
 }
