@@ -12,22 +12,26 @@ import (
 var (
 	testfile = "text.file"
 
-	tables = []*Record{
-		{
+	tables = map[uint64]*Record{
+		1: {
 			index: 1,
-			data:  []byte("hello"),
+			data:  []byte("first"),
 		},
-		{
+		2: {
 			index: 2,
-			data:  []byte("mobus"),
+			data:  []byte("-second"),
 		},
-		{
+		3: {
 			index: 3,
-			data:  []byte("world,hello"),
+			data:  []byte("-thrid"),
 		},
-		{
+		4: {
 			index: 4,
-			data:  []byte("my family"),
+			data:  []byte("-fourth"),
+		},
+		5: {
+			index: 5,
+			data:  []byte("-fifth"),
 		},
 	}
 )

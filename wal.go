@@ -45,18 +45,25 @@ var (
 	}
 )
 
-func (l *Log) Write(idx uint64, data []byte) error {
+func (l *Log) Write(data []byte) error {
 	r, _ := rpool.Get().(*Record)
 	defer rpool.Put(r)
-	r.index = idx
+	r.index = l.lastIndex + 1
 	r.data = data
 	head, err := l.writer.Header()
 	if err != nil {
 		return err
 	}
 	head.tail = r.index
-	l.writer.WriteAt(head.Marshal(), 0)
-	l.writer.Write(r.Marshal())
+	_, err = l.writer.WriteAt(head.Marshal(), 0)
+	if err != nil {
+		return err
+	}
+	_, err = l.writer.Write(r.Marshal())
+	if err != nil {
+		return err
+	}
+	l.lastIndex = r.index
 	return nil
 }
 
@@ -82,7 +89,7 @@ func (l *Log) ReadBatch(idxes ...uint64) (map[uint64][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var rec *Record
+	rec := &Record{}
 	for _, item := range items {
 		buf := cachem.Malloc(int(item.length))
 		l.writer.ReadAt(buf, int64(item.offset))

@@ -276,6 +276,9 @@ func (f *UnixFile) Items() ([]*Item, error) {
 	var pos int64 = HeaderSize
 	res := make([]*Item, 0)
 	for {
+		if pos >= f.size {
+			break
+		}
 		f.ReadAt(rsizes, pos)
 		rsize := binary.BigEndian.Uint32(rsizes)
 
