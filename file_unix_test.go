@@ -76,7 +76,7 @@ func TestRecord(t *testing.T) {
 		index: 1,
 		data:  []byte("hello"),
 	}
-	rs := r.Marshal()
+	rs, _ := r.Marshal()
 
 	rr := &Record{}
 	rr.Unmarshal(rs[4:])
@@ -96,8 +96,8 @@ func TestFirstRecord(t *testing.T) {
 		index: 1,
 		data:  []byte("hello"),
 	}
-
-	uf.Write(r.Marshal())
+	b, _ := r.Marshal()
+	uf.Write(b)
 
 	rr, err := uf.First()
 	if err != nil {
@@ -116,8 +116,10 @@ func TestFirstRecord(t *testing.T) {
 func TestItems(t *testing.T) {
 
 	uf := openFile(testfile)
+	var b []byte
 	for _, v := range tables {
-		uf.Write(v.Marshal())
+		b, _ = v.Marshal()
+		uf.Write(b)
 	}
 	r := &Record{}
 	items, _ := uf.Items()
@@ -138,8 +140,10 @@ func TestItems(t *testing.T) {
 
 func TestItem(t *testing.T) {
 	uf := openFile(testfile)
+	var b []byte
 	for _, v := range tables {
-		uf.Write(v.Marshal())
+		b, _ = v.Marshal()
+		uf.Write(b)
 	}
 	item, err := uf.Item(2)
 	assert.Equal(t, nil, err, "should read")
@@ -150,8 +154,10 @@ func TestItem(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	uf := openFile(testfile)
+	var b []byte
 	for _, v := range tables {
-		uf.Write(v.Marshal())
+		b, _ = v.Marshal()
+		uf.Write(b)
 	}
 
 	items, _ := uf.Items()
@@ -176,22 +182,25 @@ func TestLastRecord(t *testing.T) {
 		index: 1,
 		data:  []byte("hello"),
 	}
-
-	uf.Write(r.Marshal())
+	var b []byte
+	b, _ = r.Marshal()
+	uf.Write(b)
 
 	r = &Record{
 		index: 2,
 		data:  []byte("mobus11"),
 	}
 
-	uf.Write(r.Marshal())
+	b, _ = r.Marshal()
+	uf.Write(b)
 
 	r = &Record{
 		index: 3,
 		data:  []byte("world111"),
 	}
 
-	uf.Write(r.Marshal())
+	b, _ = r.Marshal()
+	uf.Write(b)
 
 	rr, err := uf.Last()
 	if err != nil {

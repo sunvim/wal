@@ -21,9 +21,17 @@ import (
 )
 
 const (
-	RecordSize = 4
-	IndexSize  = 8
+	RecordSize    = 4
+	IndexSize     = 8
+	RecordMaxSize = 1 << 31
 )
+
+const (
+	RecordIns OpType = iota
+	RecordDel
+)
+
+type OpType int
 
 // Record format:
 // rsize(4B)+index(8B)+data(NB)+rsize(4B)
@@ -33,14 +41,17 @@ type Record struct {
 	rsize uint32
 }
 
-func (r *Record) Marshal() []byte {
+func (r *Record) Marshal() ([]byte, error) {
 	ibs := cachem.Malloc(IndexSize)
 	binary.BigEndian.PutUint64(ibs, r.index)
 	r.rsize = uint32(len(r.data)) + IndexSize + RecordSize
+	if r.rsize >= RecordMaxSize {
+		return nil, ErrOutOfRecordSize
+	}
 	rbs := cachem.Malloc(RecordSize)
 	binary.BigEndian.PutUint32(rbs, r.rsize)
 	defer func() { cachem.Free(ibs); cachem.Free(rbs) }()
-	return append(rbs, append(append(ibs, r.data...), rbs...)...)
+	return append(rbs, append(append(ibs, r.data...), rbs...)...), nil
 }
 
 func (r *Record) Unmarshal(data []byte) error {

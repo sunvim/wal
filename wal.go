@@ -59,7 +59,8 @@ func (l *Log) Write(data []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = l.writer.Write(r.Marshal())
+	b, _ := r.Marshal()
+	_, err = l.writer.Write(b)
 	if err != nil {
 		return err
 	}
